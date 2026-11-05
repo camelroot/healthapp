@@ -266,6 +266,52 @@ textarea { resize: vertical; }
 
 .field-row .field { flex: 1; }
 
+.hint-tight {
+  margin-top: -0.4rem;
+  margin-bottom: 0.6rem;
+}
+
+.exercise-row {
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px dashed var(--border);
+}
+
+.exercise-row:last-of-type {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.exercise-row .field-row {
+  margin-bottom: 0;
+}
+
+.remove-exercise-btn {
+  display: block;
+  margin: 0.4rem 0 0;
+  background: none;
+  border: none;
+  color: var(--danger);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.btn-add-exercise {
+  width: 100%;
+  margin: 0.75rem 0 1rem;
+  padding: 0.6rem;
+  border: 1px dashed var(--teal);
+  border-radius: 10px;
+  background: none;
+  color: var(--teal);
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
 .btn-primary, .btn-secondary, .btn-danger {
   display: block;
   width: 100%;

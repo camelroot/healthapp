@@ -63,25 +63,9 @@
 
       <fieldset class="field-group">
         <legend>Aerobic Exercise</legend>
-        <div class="field-row">
-          <label class="field">
-            <span>Minutes</span>
-            <input type="number" id="exerciseMinutes" inputmode="numeric" step="1" min="0" placeholder="e.g. 30">
-          </label>
-          <label class="field">
-            <span>Type</span>
-            <select id="exerciseType">
-              <option value="">—</option>
-              <option>Walking</option>
-              <option>Running</option>
-              <option>Cycling</option>
-              <option>Swimming</option>
-              <option>Elliptical</option>
-              <option>Rowing</option>
-              <option>Other</option>
-            </select>
-          </label>
-        </div>
+        <p class="hint hint-tight">Log more than one workout for the day by adding another row.</p>
+        <div id="exerciseRows"></div>
+        <button type="button" class="btn-add-exercise" id="addExerciseBtn">+ Add Exercise</button>
       </fieldset>
 
       <label class="field">

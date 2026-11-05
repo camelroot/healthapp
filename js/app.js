@@ -205,8 +205,6 @@
   const weightInput = document.getElementById("weight");
   const bpSystolicInput = document.getElementById("bpSystolic");
   const bpDiastolicInput = document.getElementById("bpDiastolic");
-  const exerciseMinutesInput = document.getElementById("exerciseMinutes");
-  const exerciseTypeInput = document.getElementById("exerciseType");
   const notesInput = document.getElementById("notes");
   const existingEntryNotice = document.getElementById("existingEntryNotice");
   const deleteEntryBtn = document.getElementById("deleteEntryBtn");
@@ -219,14 +217,90 @@
     onSelect: (dateStr) => loadEntryIntoForm(dateStr),
   });
 
+  // ---------- Exercise rows (supports multiple workouts per day) ----------
+  const EXERCISE_TYPES = ["Walking", "Running", "Cycling", "Swimming", "Elliptical", "Rowing", "Other"];
+  const exerciseRowsContainer = document.getElementById("exerciseRows");
+
+  function exerciseRowEl(minutes = "", type = "") {
+    const wrap = document.createElement("div");
+    wrap.className = "exercise-row";
+    const options = EXERCISE_TYPES.map((t) => `<option ${t === type ? "selected" : ""}>${t}</option>`).join("");
+    wrap.innerHTML = `
+      <div class="field-row">
+        <label class="field">
+          <span>Minutes</span>
+          <input type="number" class="ex-minutes" inputmode="numeric" step="1" min="0" placeholder="e.g. 30" value="${minutes}">
+        </label>
+        <label class="field">
+          <span>Type</span>
+          <select class="ex-type">
+            <option value="">—</option>
+            ${options}
+          </select>
+        </label>
+      </div>
+      <button type="button" class="remove-exercise-btn">Remove this exercise</button>
+    `;
+    wrap.querySelector(".remove-exercise-btn").addEventListener("click", () => {
+      wrap.remove();
+      updateRemoveButtonsVisibility();
+    });
+    return wrap;
+  }
+
+  function addExerciseRow(minutes = "", type = "") {
+    exerciseRowsContainer.appendChild(exerciseRowEl(minutes, type));
+    updateRemoveButtonsVisibility();
+  }
+
+  function updateRemoveButtonsVisibility() {
+    const rows = exerciseRowsContainer.querySelectorAll(".exercise-row");
+    rows.forEach((r) => r.querySelector(".remove-exercise-btn").classList.toggle("hidden", rows.length === 1));
+  }
+
+  function clearExerciseRows() {
+    exerciseRowsContainer.innerHTML = "";
+  }
+
+  function loadExercisesIntoForm(exercises) {
+    clearExerciseRows();
+    if (exercises.length) {
+      exercises.forEach((ex) => addExerciseRow(ex.minutes, ex.type));
+    } else {
+      addExerciseRow();
+    }
+  }
+
+  function getExercisesFromForm() {
+    const result = [];
+    exerciseRowsContainer.querySelectorAll(".exercise-row").forEach((row) => {
+      const minutes = row.querySelector(".ex-minutes").value;
+      const type = row.querySelector(".ex-type").value;
+      if (minutes !== "" && parseInt(minutes, 10) > 0) {
+        const item = { minutes: parseInt(minutes, 10) };
+        if (type) item.type = type;
+        result.push(item);
+      }
+    });
+    return result;
+  }
+
+  // Normalizes an entry's exercise data, supporting the old single-exercise shape too.
+  function exercisesOf(e) {
+    if (!e) return [];
+    if (e.exercises && e.exercises.length) return e.exercises;
+    if (e.exerciseMinutes !== undefined) return [{ minutes: e.exerciseMinutes, type: e.exerciseType }];
+    return [];
+  }
+
+  document.getElementById("addExerciseBtn").addEventListener("click", () => addExerciseRow());
+
   function loadEntryIntoForm(dateStr) {
     const e = entries[dateStr];
     if (e) {
       weightInput.value = e.weight ?? "";
       bpSystolicInput.value = e.bpSystolic ?? "";
       bpDiastolicInput.value = e.bpDiastolic ?? "";
-      exerciseMinutesInput.value = e.exerciseMinutes ?? "";
-      exerciseTypeInput.value = e.exerciseType ?? "";
       notesInput.value = e.notes ?? "";
       existingEntryNotice.classList.remove("hidden");
       deleteEntryBtn.classList.remove("hidden");
@@ -234,12 +308,11 @@
       weightInput.value = "";
       bpSystolicInput.value = "";
       bpDiastolicInput.value = "";
-      exerciseMinutesInput.value = "";
-      exerciseTypeInput.value = "";
       notesInput.value = "";
       existingEntryNotice.classList.add("hidden");
       deleteEntryBtn.classList.add("hidden");
     }
+    loadExercisesIntoForm(exercisesOf(e));
     updateWeightUnitLabels();
   }
 
@@ -252,8 +325,8 @@
     if (weightInput.value !== "") entry.weight = parseFloat(weightInput.value);
     if (bpSystolicInput.value !== "") entry.bpSystolic = parseInt(bpSystolicInput.value, 10);
     if (bpDiastolicInput.value !== "") entry.bpDiastolic = parseInt(bpDiastolicInput.value, 10);
-    if (exerciseMinutesInput.value !== "") entry.exerciseMinutes = parseInt(exerciseMinutesInput.value, 10);
-    if (exerciseTypeInput.value !== "") entry.exerciseType = exerciseTypeInput.value;
+    const exercises = getExercisesFromForm();
+    if (exercises.length) entry.exercises = exercises;
     if (notesInput.value.trim() !== "") entry.notes = notesInput.value.trim();
 
     entries[dateStr] = entry;
@@ -308,7 +381,8 @@
       if (e.weight !== undefined) b.weights.push(e.weight);
       if (e.bpSystolic !== undefined) b.systolics.push(e.bpSystolic);
       if (e.bpDiastolic !== undefined) b.diastolics.push(e.bpDiastolic);
-      if (e.exerciseMinutes !== undefined) b.exerciseMinutes.push(e.exerciseMinutes);
+      const dayExercises = exercisesOf(e);
+      if (dayExercises.length) b.exerciseMinutes.push(dayExercises.reduce((sum, x) => sum + x.minutes, 0));
       b.daysLogged += 1;
     });
 
@@ -493,7 +567,10 @@
         const parts = [];
         if (e.weight !== undefined) parts.push(`${e.weight} ${settings.weightUnit}`);
         if (e.bpSystolic !== undefined) parts.push(`BP ${e.bpSystolic}/${e.bpDiastolic}`);
-        if (e.exerciseMinutes !== undefined) parts.push(`${e.exerciseMinutes} min${e.exerciseType ? " " + e.exerciseType : ""}`);
+        const exercises = exercisesOf(e);
+        if (exercises.length) {
+          parts.push(exercises.map((x) => `${x.minutes} min${x.type ? " " + x.type : ""}`).join(" + "));
+        }
         return `<div class="history-item" data-date="${e.date}">
           <div>
             <div class="hi-date">${formatShort(e.date)}</div>
@@ -515,18 +592,20 @@
   }
 
   document.getElementById("exportCsvBtn").addEventListener("click", () => {
-    const rows = [["date", "weight", "weightUnit", "bpSystolic", "bpDiastolic", "exerciseMinutes", "exerciseType", "notes"]];
+    const rows = [["date", "weight", "weightUnit", "bpSystolic", "bpDiastolic", "exercises", "notes"]];
     Object.values(entries)
       .sort((a, b) => (a.date < b.date ? -1 : 1))
       .forEach((e) => {
+        const exercises = exercisesOf(e)
+          .map((x) => `${x.minutes}min${x.type ? " " + x.type : ""}`)
+          .join("; ");
         rows.push([
           e.date,
           e.weight ?? "",
           e.weight !== undefined ? settings.weightUnit : "",
           e.bpSystolic ?? "",
           e.bpDiastolic ?? "",
-          e.exerciseMinutes ?? "",
-          e.exerciseType ?? "",
+          exercises,
           (e.notes ?? "").replace(/"/g, '""'),
         ]);
       });
