@@ -32,12 +32,18 @@
 
   <!-- ADD ENTRY TAB -->
   <section class="tab-panel active" id="panel-entry">
+    <div id="reminderBanner" class="reminder-banner hidden">
+      <span>You haven't logged today yet.</span>
+      <button type="button" id="dismissReminderBtn">Dismiss</button>
+    </div>
     <form id="entryForm">
       <div class="field date-field">
         <span>Date</span>
         <button type="button" class="date-btn" id="entryDateBtn"></button>
         <div class="calendar-popup hidden" id="entryDateCalendar"></div>
       </div>
+
+      <button type="button" class="btn-secondary" id="copyYesterdayBtn">↺ Copy Yesterday's Entry</button>
 
       <fieldset class="field-group">
         <legend>Weight</legend>
@@ -84,6 +90,9 @@
   <section class="tab-panel" id="panel-dashboard">
     <div class="dash-summary" id="dashSummary"></div>
 
+    <h2 class="section-title">Goals</h2>
+    <div id="goalsSection"></div>
+
     <h2 class="section-title">Weight Trend</h2>
     <div class="chart-wrap" id="chartWeight"></div>
 
@@ -110,6 +119,8 @@
   <section class="tab-panel" id="panel-history">
     <div class="history-toolbar">
       <button class="btn-secondary" id="exportCsvBtn">Export CSV</button>
+      <button class="btn-secondary" id="importCsvBtn">Import CSV</button>
+      <input type="file" id="importCsvInput" accept=".csv,text/csv" class="hidden">
     </div>
     <div id="historyList" class="history-list"></div>
   </section>
@@ -130,6 +141,22 @@
       <div class="calendar-popup hidden" id="programStartCalendar"></div>
     </div>
     <p class="hint">This sets Week 1. All entries are grouped into 26 weekly buckets from this date.</p>
+
+    <label class="field">
+      <span>Weekly Exercise Goal (minutes)</span>
+      <input type="number" id="weeklyExerciseGoal" inputmode="numeric" step="1" min="0" placeholder="e.g. 210">
+    </label>
+
+    <label class="field">
+      <span>Weight Goal (<span class="unit-label" id="weightUnitLabel2">lb</span>)</span>
+      <input type="number" id="weightGoal" inputmode="decimal" step="0.1" min="0" placeholder="e.g. 180">
+    </label>
+
+    <div class="field date-field">
+      <span>Weight Goal Target Date</span>
+      <button type="button" class="date-btn" id="weightGoalDateBtn"></button>
+      <div class="calendar-popup hidden" id="weightGoalDateCalendar"></div>
+    </div>
 
     <div class="danger-zone">
       <h3>Danger Zone</h3>

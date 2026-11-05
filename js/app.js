@@ -27,6 +27,13 @@
     }
     if (!s.weightUnit) s.weightUnit = "lb";
     if (!s.programStart) s.programStart = todayStr();
+    if (s.weeklyExerciseGoal === undefined) s.weeklyExerciseGoal = 210;
+    if (s.weightGoal === undefined) s.weightGoal = 180;
+    if (!s.weightGoalDate) {
+      const d = new Date();
+      d.setDate(d.getDate() + 90);
+      s.weightGoalDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
     return s;
   }
 
@@ -217,6 +224,21 @@
     onSelect: (dateStr) => loadEntryIntoForm(dateStr),
   });
 
+  document.getElementById("copyYesterdayBtn").addEventListener("click", () => {
+    const dateStr = entryDatePicker.getDate();
+    const prevDate = addDays(dateStr, -1);
+    const prev = entries[prevDate];
+    if (!prev) {
+      alert(`No entry found for ${formatShort(prevDate)}.`);
+      return;
+    }
+    weightInput.value = prev.weight ?? "";
+    bpSystolicInput.value = prev.bpSystolic ?? "";
+    bpDiastolicInput.value = prev.bpDiastolic ?? "";
+    notesInput.value = prev.notes ?? "";
+    loadExercisesIntoForm(exercisesOf(prev));
+  });
+
   // ---------- Exercise rows (supports multiple workouts per day) ----------
   const EXERCISE_TYPES = ["Walking", "Running", "Cycling", "Swimming", "Elliptical", "Rowing", "Other"];
   const exerciseRowsContainer = document.getElementById("exerciseRows");
@@ -332,6 +354,7 @@
     entries[dateStr] = entry;
     saveEntries(entries);
     loadEntryIntoForm(dateStr);
+    updateReminderBanner();
     flashSaved();
   });
 
@@ -342,6 +365,7 @@
     delete entries[dateStr];
     saveEntries(entries);
     loadEntryIntoForm(dateStr);
+    updateReminderBanner();
   });
 
   function flashSaved() {
@@ -354,6 +378,21 @@
   function updateWeightUnitLabels() {
     document.querySelectorAll(".unit-label").forEach((el) => (el.textContent = settings.weightUnit));
   }
+
+  // ---------- Reminder banner ----------
+  const REMINDER_DISMISSED_KEY = "healthapp_reminder_dismissed_v1";
+
+  function updateReminderBanner() {
+    const banner = document.getElementById("reminderBanner");
+    const dismissedDate = localStorage.getItem(REMINDER_DISMISSED_KEY);
+    const alreadyLoggedToday = !!entries[todayStr()];
+    banner.classList.toggle("hidden", alreadyLoggedToday || dismissedDate === todayStr());
+  }
+
+  document.getElementById("dismissReminderBtn").addEventListener("click", () => {
+    localStorage.setItem(REMINDER_DISMISSED_KEY, todayStr());
+    updateReminderBanner();
+  });
 
   // ---------- Dashboard ----------
   function weeklyBuckets() {
@@ -402,6 +441,24 @@
     return n === null ? "—" : Math.round(n);
   }
 
+  function bpCategory(sys, dia) {
+    if (sys >= 180 || dia >= 120) return { label: "Crisis", cls: "bp-crisis" };
+    if (sys >= 140 || dia >= 90) return { label: "High (Stage 2)", cls: "bp-high2" };
+    if (sys >= 130 || dia >= 80) return { label: "High (Stage 1)", cls: "bp-high1" };
+    if (sys >= 120) return { label: "Elevated", cls: "bp-elevated" };
+    return { label: "Normal", cls: "bp-normal" };
+  }
+
+  function currentStreak() {
+    let streak = 0;
+    let d = entries[todayStr()] ? todayStr() : addDays(todayStr(), -1);
+    while (entries[d]) {
+      streak++;
+      d = addDays(d, -1);
+    }
+    return streak;
+  }
+
   function currentWeekNumber() {
     const idx = weekIndexFor(todayStr());
     if (idx === null) return null;
@@ -418,9 +475,10 @@
     const buckets = weeklyBuckets();
     const allEntries = Object.values(entries).sort((a, b) => (a.date < b.date ? -1 : 1));
 
-    // Summary cards: latest weight, latest BP, total days logged
+    // Summary cards: latest weight, latest BP, total days logged, streak
     const latestWithWeight = [...allEntries].reverse().find((e) => e.weight !== undefined);
     const latestWithBP = [...allEntries].reverse().find((e) => e.bpSystolic !== undefined);
+    const latestBPCat = latestWithBP ? bpCategory(latestWithBP.bpSystolic, latestWithBP.bpDiastolic) : null;
     const summary = document.getElementById("dashSummary");
     summary.innerHTML = `
       <div class="summary-card">
@@ -430,13 +488,19 @@
       <div class="summary-card">
         <div class="value">${latestWithBP ? latestWithBP.bpSystolic + "/" + latestWithBP.bpDiastolic : "—"}</div>
         <div class="label">Latest BP</div>
+        ${latestBPCat ? `<div class="bp-badge ${latestBPCat.cls}">${latestBPCat.label}</div>` : ""}
       </div>
       <div class="summary-card">
         <div class="value">${allEntries.length}</div>
         <div class="label">Days Logged</div>
       </div>
+      <div class="summary-card">
+        <div class="value streak-value">🔥 ${currentStreak()}</div>
+        <div class="label">Day Streak</div>
+      </div>
     `;
 
+    renderGoals(buckets, allEntries);
     renderLineChart("chartWeight", buckets.map((b) => avg(b.weights)), { suffix: " " + settings.weightUnit, color: "#0f766e" });
     renderBPChart("chartBP", buckets);
     renderBarChart("chartExercise", buckets.map((b) => (b.exerciseMinutes.length ? b.exerciseMinutes.reduce((a, c) => a + c, 0) : null)), { suffix: " min", color: "#2563eb" });
@@ -458,6 +522,55 @@
         </tr>`;
       })
       .join("");
+  }
+
+  function renderGoals(buckets, allEntries) {
+    const container = document.getElementById("goalsSection");
+
+    const weekIdx = weekIndexFor(todayStr());
+    const curBucket = weekIdx !== null && weekIdx < TOTAL_WEEKS ? buckets[weekIdx] : null;
+    const weekMinutes = curBucket ? curBucket.exerciseMinutes.reduce((a, b) => a + b, 0) : 0;
+    const exGoal = settings.weeklyExerciseGoal || 0;
+    const exPct = exGoal ? Math.max(0, Math.min(100, Math.round((weekMinutes / exGoal) * 100))) : 0;
+
+    const firstWithWeight = allEntries.find((e) => e.weight !== undefined);
+    const latestWithWeight = [...allEntries].reverse().find((e) => e.weight !== undefined);
+    const weightGoal = settings.weightGoal;
+    const daysLeft = settings.weightGoalDate ? daysBetween(todayStr(), settings.weightGoalDate) : null;
+    const daysLeftText = daysLeft === null ? "" : daysLeft >= 0 ? ` · ${daysLeft} day${daysLeft === 1 ? "" : "s"} left` : " · target date passed";
+
+    let weightBlock;
+    if (!weightGoal) {
+      weightBlock = `<div class="goal-sub">Set a weight goal in Settings to track progress.</div>`;
+    } else if (!firstWithWeight || !latestWithWeight) {
+      weightBlock = `<div class="goal-sub">Log your weight to start tracking progress${daysLeftText}</div>`;
+    } else {
+      const start = firstWithWeight.weight;
+      const current = latestWithWeight.weight;
+      const totalChange = start - weightGoal;
+      const doneSoFar = start - current;
+      const pct = totalChange !== 0 ? Math.max(0, Math.min(100, Math.round((doneSoFar / totalChange) * 100))) : 100;
+      const remaining = +(current - weightGoal).toFixed(1);
+      const remainingText =
+        Math.abs(remaining) < 0.05
+          ? "Goal reached! 🎉"
+          : `${fmt1(Math.abs(remaining))} ${settings.weightUnit} to go`;
+      weightBlock = `
+        <div class="goal-bar"><div class="goal-bar-fill" style="width:${pct}%"></div></div>
+        <div class="goal-sub">${remainingText}${daysLeftText}</div>
+      `;
+    }
+
+    container.innerHTML = `
+      <div class="goal-card">
+        <div class="goal-head"><span>Weekly Exercise</span><span>${weekMinutes} / ${exGoal} min</span></div>
+        <div class="goal-bar"><div class="goal-bar-fill" style="width:${exPct}%"></div></div>
+      </div>
+      <div class="goal-card">
+        <div class="goal-head"><span>Weight Goal</span><span>${weightGoal ? fmt1(weightGoal) + " " + settings.weightUnit : "—"}</span></div>
+        ${weightBlock}
+      </div>
+    `;
   }
 
   // ---------- Charts (plain inline SVG, no dependencies) ----------
@@ -566,7 +679,10 @@
       .map((e) => {
         const parts = [];
         if (e.weight !== undefined) parts.push(`${e.weight} ${settings.weightUnit}`);
-        if (e.bpSystolic !== undefined) parts.push(`BP ${e.bpSystolic}/${e.bpDiastolic}`);
+        if (e.bpSystolic !== undefined) {
+          const cat = bpCategory(e.bpSystolic, e.bpDiastolic);
+          parts.push(`<span class="${cat.cls}">BP ${e.bpSystolic}/${e.bpDiastolic} (${cat.label})</span>`);
+        }
         const exercises = exercisesOf(e);
         if (exercises.length) {
           parts.push(exercises.map((x) => `${x.minutes} min${x.type ? " " + x.type : ""}`).join(" + "));
@@ -632,9 +748,23 @@
     },
   });
 
+  const weightGoalDatePicker = makeDatePicker({
+    buttonEl: document.getElementById("weightGoalDateBtn"),
+    popupEl: document.getElementById("weightGoalDateCalendar"),
+    initialDate: settings.weightGoalDate,
+    maxDate: null,
+    onSelect: (dateStr) => {
+      settings.weightGoalDate = dateStr;
+      saveSettings(settings);
+    },
+  });
+
   function renderSettings() {
     document.getElementById("weightUnit").value = settings.weightUnit;
     programStartPicker.setDate(settings.programStart);
+    document.getElementById("weeklyExerciseGoal").value = settings.weeklyExerciseGoal;
+    document.getElementById("weightGoal").value = settings.weightGoal ?? "";
+    weightGoalDatePicker.setDate(settings.weightGoalDate);
   }
 
   document.getElementById("weightUnit").addEventListener("change", (ev) => {
@@ -644,6 +774,16 @@
     updateWeekPill();
   });
 
+  document.getElementById("weeklyExerciseGoal").addEventListener("change", (ev) => {
+    settings.weeklyExerciseGoal = ev.target.value === "" ? 0 : parseInt(ev.target.value, 10);
+    saveSettings(settings);
+  });
+
+  document.getElementById("weightGoal").addEventListener("change", (ev) => {
+    settings.weightGoal = ev.target.value === "" ? null : parseFloat(ev.target.value);
+    saveSettings(settings);
+  });
+
   document.getElementById("resetAllBtn").addEventListener("click", () => {
     if (!confirm("This will permanently erase all logged entries on this device. Continue?")) return;
     entries = {};
@@ -651,12 +791,125 @@
     loadEntryIntoForm(entryDatePicker.getDate());
     renderHistory();
     renderDashboard();
+    updateReminderBanner();
+  });
+
+  // ---------- CSV Import ----------
+  function parseCsvLine(line) {
+    const result = [];
+    let cur = "";
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (inQuotes) {
+        if (c === '"') {
+          if (line[i + 1] === '"') {
+            cur += '"';
+            i++;
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          cur += c;
+        }
+      } else if (c === '"') {
+        inQuotes = true;
+      } else if (c === ",") {
+        result.push(cur);
+        cur = "";
+      } else {
+        cur += c;
+      }
+    }
+    result.push(cur);
+    return result;
+  }
+
+  function parseExercisesField(str) {
+    if (!str) return [];
+    return str
+      .split(";")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((s) => {
+        const m = s.match(/^(\d+)\s*min\s*(.*)$/i);
+        if (!m) return null;
+        const item = { minutes: parseInt(m[1], 10) };
+        if (m[2]) item.type = m[2].trim();
+        return item;
+      })
+      .filter(Boolean);
+  }
+
+  function parseCsv(text) {
+    const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
+    if (!lines.length) return [];
+    const header = parseCsvLine(lines[0]).map((h) => h.trim());
+    const idx = (name) => header.indexOf(name);
+    const dateIdx = idx("date");
+    if (dateIdx === -1) throw new Error("missing date column");
+    const weightIdx = idx("weight");
+    const bpSysIdx = idx("bpSystolic");
+    const bpDiaIdx = idx("bpDiastolic");
+    const exIdx = idx("exercises");
+    const notesIdx = idx("notes");
+
+    const result = [];
+    for (let i = 1; i < lines.length; i++) {
+      const cols = parseCsvLine(lines[i]);
+      const date = (cols[dateIdx] || "").trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+      const entry = { date };
+      if (weightIdx !== -1 && cols[weightIdx] !== "") entry.weight = parseFloat(cols[weightIdx]);
+      if (bpSysIdx !== -1 && cols[bpSysIdx] !== "") entry.bpSystolic = parseInt(cols[bpSysIdx], 10);
+      if (bpDiaIdx !== -1 && cols[bpDiaIdx] !== "") entry.bpDiastolic = parseInt(cols[bpDiaIdx], 10);
+      if (exIdx !== -1 && cols[exIdx] !== "") {
+        const exercises = parseExercisesField(cols[exIdx]);
+        if (exercises.length) entry.exercises = exercises;
+      }
+      if (notesIdx !== -1 && cols[notesIdx] !== "") entry.notes = cols[notesIdx];
+      result.push(entry);
+    }
+    return result;
+  }
+
+  document.getElementById("importCsvBtn").addEventListener("click", () => {
+    document.getElementById("importCsvInput").click();
+  });
+
+  document.getElementById("importCsvInput").addEventListener("change", (ev) => {
+    const file = ev.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const imported = parseCsv(String(reader.result));
+        if (!imported.length) {
+          alert("No valid rows found in that file.");
+          return;
+        }
+        if (!confirm(`Import ${imported.length} ${imported.length === 1 ? "entry" : "entries"}? Existing entries on the same dates will be overwritten.`)) return;
+        imported.forEach((e) => {
+          entries[e.date] = e;
+        });
+        saveEntries(entries);
+        loadEntryIntoForm(entryDatePicker.getDate());
+        renderHistory();
+        updateReminderBanner();
+        alert(`Imported ${imported.length} ${imported.length === 1 ? "entry" : "entries"}.`);
+      } catch (err) {
+        alert("Could not read that CSV file. Make sure it's the format exported by this app.");
+      }
+      ev.target.value = "";
+    };
+    reader.readAsText(file);
   });
 
   // ---------- Init ----------
   loadEntryIntoForm(todayStr());
   updateWeekPill();
   updateWeightUnitLabels();
+  updateReminderBanner();
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
