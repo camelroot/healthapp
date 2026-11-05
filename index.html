@@ -33,16 +33,17 @@
   <!-- ADD ENTRY TAB -->
   <section class="tab-panel active" id="panel-entry">
     <form id="entryForm">
-      <label class="field">
+      <div class="field date-field">
         <span>Date</span>
-        <input type="date" id="entryDate" required>
-      </label>
+        <button type="button" class="date-btn" id="entryDateBtn"></button>
+        <div class="calendar-popup hidden" id="entryDateCalendar"></div>
+      </div>
 
       <fieldset class="field-group">
         <legend>Weight</legend>
         <label class="field">
-          <span>Weight (<span class="unit-label" id="weightUnitLabel1">kg</span>)</span>
-          <input type="number" id="weight" inputmode="decimal" step="0.1" min="0" placeholder="e.g. 78.4">
+          <span>Weight (<span class="unit-label" id="weightUnitLabel1">lb</span>)</span>
+          <input type="number" id="weight" inputmode="decimal" step="0.1" min="0" placeholder="e.g. 172.5">
         </label>
       </fieldset>
 
@@ -134,15 +135,16 @@
     <label class="field">
       <span>Weight Unit</span>
       <select id="weightUnit">
-        <option value="kg">Kilograms (kg)</option>
         <option value="lb">Pounds (lb)</option>
+        <option value="kg">Kilograms (kg)</option>
       </select>
     </label>
 
-    <label class="field">
+    <div class="field date-field">
       <span>26-Week Program Start Date</span>
-      <input type="date" id="programStart">
-    </label>
+      <button type="button" class="date-btn" id="programStartBtn"></button>
+      <div class="calendar-popup hidden" id="programStartCalendar"></div>
+    </div>
     <p class="hint">This sets Week 1. All entries are grouped into 26 weekly buckets from this date.</p>
 
     <div class="danger-zone">

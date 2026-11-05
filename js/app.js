@@ -25,7 +25,7 @@
     } catch {
       s = {};
     }
-    if (!s.weightUnit) s.weightUnit = "kg";
+    if (!s.weightUnit) s.weightUnit = "lb";
     if (!s.programStart) s.programStart = todayStr();
     return s;
   }
@@ -71,6 +71,112 @@
     return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   }
 
+  function formatLong(dateStr) {
+    const d = parseDate(dateStr);
+    return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  }
+
+  // ---------- Custom calendar date picker ----------
+  function makeDatePicker({ buttonEl, popupEl, initialDate, maxDate, onSelect }) {
+    let selected = initialDate;
+    let viewDate = parseDate(initialDate);
+    viewDate.setDate(1);
+
+    function renderButton() {
+      buttonEl.textContent = formatLong(selected);
+    }
+
+    function renderPopup() {
+      const year = viewDate.getFullYear();
+      const month = viewDate.getMonth();
+      const startWeekday = new Date(year, month, 1).getDay();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const monthLabel = viewDate.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+
+      let cells = "";
+      for (let i = 0; i < startWeekday; i++) cells += `<div class="cal-cell"></div>`;
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        const isSelected = dateStr === selected;
+        const isToday = dateStr === todayStr();
+        const isDisabled = maxDate && dateStr > maxDate;
+        cells += `<button type="button" class="cal-cell cal-day${isSelected ? " cal-selected" : ""}${isToday ? " cal-today" : ""}" ${isDisabled ? "disabled" : ""} data-date="${dateStr}">${day}</button>`;
+      }
+
+      popupEl.innerHTML = `
+        <div class="cal-header">
+          <button type="button" class="cal-nav" data-nav="-1">‹</button>
+          <span>${monthLabel}</span>
+          <button type="button" class="cal-nav" data-nav="1">›</button>
+        </div>
+        <div class="cal-weekdays">
+          <div>S</div><div>M</div><div>T</div><div>W</div><div>T</div><div>F</div><div>S</div>
+        </div>
+        <div class="cal-grid">${cells}</div>
+        <button type="button" class="cal-today-btn">Today</button>
+      `;
+
+      popupEl.querySelector('[data-nav="-1"]').addEventListener("click", () => {
+        viewDate.setMonth(viewDate.getMonth() - 1);
+        renderPopup();
+      });
+      popupEl.querySelector('[data-nav="1"]').addEventListener("click", () => {
+        viewDate.setMonth(viewDate.getMonth() + 1);
+        renderPopup();
+      });
+      popupEl.querySelectorAll(".cal-day").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          selected = btn.dataset.date;
+          renderButton();
+          close();
+          onSelect(selected);
+        });
+      });
+      popupEl.querySelector(".cal-today-btn").addEventListener("click", () => {
+        const t = todayStr();
+        if (maxDate && t > maxDate) return;
+        selected = t;
+        viewDate = parseDate(t);
+        viewDate.setDate(1);
+        renderButton();
+        close();
+        onSelect(selected);
+      });
+    }
+
+    function open() {
+      viewDate = parseDate(selected);
+      viewDate.setDate(1);
+      renderPopup();
+      popupEl.classList.remove("hidden");
+    }
+
+    function close() {
+      popupEl.classList.add("hidden");
+    }
+
+    buttonEl.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      if (popupEl.classList.contains("hidden")) open();
+      else close();
+    });
+    document.addEventListener("click", (ev) => {
+      if (!popupEl.contains(ev.target) && ev.target !== buttonEl) close();
+    });
+
+    renderButton();
+
+    return {
+      setDate(dateStr) {
+        selected = dateStr;
+        renderButton();
+      },
+      getDate() {
+        return selected;
+      },
+    };
+  }
+
   function weekIndexFor(dateStr) {
     // returns 0-based week index relative to settings.programStart, or null if before start
     const diff = daysBetween(settings.programStart, dateStr);
@@ -96,7 +202,6 @@
 
   // ---------- Entry Form ----------
   const entryForm = document.getElementById("entryForm");
-  const entryDateInput = document.getElementById("entryDate");
   const weightInput = document.getElementById("weight");
   const bpSystolicInput = document.getElementById("bpSystolic");
   const bpDiastolicInput = document.getElementById("bpDiastolic");
@@ -106,8 +211,13 @@
   const existingEntryNotice = document.getElementById("existingEntryNotice");
   const deleteEntryBtn = document.getElementById("deleteEntryBtn");
 
-  entryDateInput.value = todayStr();
-  entryDateInput.max = todayStr();
+  const entryDatePicker = makeDatePicker({
+    buttonEl: document.getElementById("entryDateBtn"),
+    popupEl: document.getElementById("entryDateCalendar"),
+    initialDate: todayStr(),
+    maxDate: todayStr(),
+    onSelect: (dateStr) => loadEntryIntoForm(dateStr),
+  });
 
   function loadEntryIntoForm(dateStr) {
     const e = entries[dateStr];
@@ -133,11 +243,9 @@
     updateWeightUnitLabels();
   }
 
-  entryDateInput.addEventListener("change", () => loadEntryIntoForm(entryDateInput.value));
-
   entryForm.addEventListener("submit", (ev) => {
     ev.preventDefault();
-    const dateStr = entryDateInput.value;
+    const dateStr = entryDatePicker.getDate();
     if (!dateStr) return;
 
     const entry = { date: dateStr };
@@ -155,7 +263,7 @@
   });
 
   deleteEntryBtn.addEventListener("click", () => {
-    const dateStr = entryDateInput.value;
+    const dateStr = entryDatePicker.getDate();
     if (!entries[dateStr]) return;
     if (!confirm(`Delete the entry for ${formatShort(dateStr)}?`)) return;
     delete entries[dateStr];
@@ -399,7 +507,7 @@
     list.querySelectorAll(".history-item").forEach((item) => {
       item.addEventListener("click", () => {
         const date = item.dataset.date;
-        entryDateInput.value = date;
+        entryDatePicker.setDate(date);
         loadEntryIntoForm(date);
         switchTab("entry");
       });
@@ -433,9 +541,21 @@
   });
 
   // ---------- Settings ----------
+  const programStartPicker = makeDatePicker({
+    buttonEl: document.getElementById("programStartBtn"),
+    popupEl: document.getElementById("programStartCalendar"),
+    initialDate: settings.programStart,
+    maxDate: null,
+    onSelect: (dateStr) => {
+      settings.programStart = dateStr;
+      saveSettings(settings);
+      updateWeekPill();
+    },
+  });
+
   function renderSettings() {
     document.getElementById("weightUnit").value = settings.weightUnit;
-    document.getElementById("programStart").value = settings.programStart;
+    programStartPicker.setDate(settings.programStart);
   }
 
   document.getElementById("weightUnit").addEventListener("change", (ev) => {
@@ -445,17 +565,11 @@
     updateWeekPill();
   });
 
-  document.getElementById("programStart").addEventListener("change", (ev) => {
-    settings.programStart = ev.target.value;
-    saveSettings(settings);
-    updateWeekPill();
-  });
-
   document.getElementById("resetAllBtn").addEventListener("click", () => {
     if (!confirm("This will permanently erase all logged entries on this device. Continue?")) return;
     entries = {};
     saveEntries(entries);
-    loadEntryIntoForm(entryDateInput.value);
+    loadEntryIntoForm(entryDatePicker.getDate());
     renderHistory();
     renderDashboard();
   });
