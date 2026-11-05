@@ -1,0 +1,11 @@
+{
+  "name": "Health Tracker",
+  "short_name": "HealthTrack",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f6f5",
+  "theme_color": "#0f766e",
+  "orientation": "portrait",
+  "icons": []
+}

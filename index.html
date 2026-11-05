@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Health Tracker</title>
+
+<!-- iOS "Add to Home Screen" support -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Health Tracker">
+<meta name="theme-color" content="#0f766e">
+
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<header class="app-header">
+  <h1>Health Tracker</h1>
+  <div class="week-pill" id="currentWeekPill">Week —</div>
+</header>
+
+<nav class="tabs" id="tabs">
+  <button class="tab-btn active" data-tab="entry">Add Entry</button>
+  <button class="tab-btn" data-tab="dashboard">Dashboard</button>
+  <button class="tab-btn" data-tab="history">History</button>
+  <button class="tab-btn" data-tab="settings">Settings</button>
+</nav>
+
+<main>
+
+  <!-- ADD ENTRY TAB -->
+  <section class="tab-panel active" id="panel-entry">
+    <form id="entryForm">
+      <label class="field">
+        <span>Date</span>
+        <input type="date" id="entryDate" required>
+      </label>
+
+      <fieldset class="field-group">
+        <legend>Weight</legend>
+        <label class="field">
+          <span>Weight (<span class="unit-label" id="weightUnitLabel1">kg</span>)</span>
+          <input type="number" id="weight" inputmode="decimal" step="0.1" min="0" placeholder="e.g. 78.4">
+        </label>
+      </fieldset>
+
+      <fieldset class="field-group">
+        <legend>Blood Pressure</legend>
+        <div class="field-row">
+          <label class="field">
+            <span>Systolic</span>
+            <input type="number" id="bpSystolic" inputmode="numeric" step="1" min="0" placeholder="e.g. 120">
+          </label>
+          <label class="field">
+            <span>Diastolic</span>
+            <input type="number" id="bpDiastolic" inputmode="numeric" step="1" min="0" placeholder="e.g. 80">
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset class="field-group">
+        <legend>Aerobic Exercise</legend>
+        <div class="field-row">
+          <label class="field">
+            <span>Minutes</span>
+            <input type="number" id="exerciseMinutes" inputmode="numeric" step="1" min="0" placeholder="e.g. 30">
+          </label>
+          <label class="field">
+            <span>Type</span>
+            <select id="exerciseType">
+              <option value="">—</option>
+              <option>Walking</option>
+              <option>Running</option>
+              <option>Cycling</option>
+              <option>Swimming</option>
+              <option>Elliptical</option>
+              <option>Rowing</option>
+              <option>Other</option>
+            </select>
+          </label>
+        </div>
+      </fieldset>
+
+      <label class="field">
+        <span>Notes (optional)</span>
+        <textarea id="notes" rows="2" placeholder="Anything worth remembering about today"></textarea>
+      </label>
+
+      <div id="existingEntryNotice" class="notice hidden">An entry for this date already exists — saving will update it.</div>
+
+      <button type="submit" class="btn-primary" id="saveBtn">Save Entry</button>
+      <button type="button" class="btn-danger hidden" id="deleteEntryBtn">Delete Entry for This Date</button>
+    </form>
+  </section>
+
+  <!-- DASHBOARD TAB -->
+  <section class="tab-panel" id="panel-dashboard">
+    <div class="dash-summary" id="dashSummary"></div>
+
+    <h2 class="section-title">Weight Trend</h2>
+    <div class="chart-wrap" id="chartWeight"></div>
+
+    <h2 class="section-title">Blood Pressure Trend</h2>
+    <div class="chart-wrap" id="chartBP"></div>
+
+    <h2 class="section-title">Exercise Minutes / Week</h2>
+    <div class="chart-wrap" id="chartExercise"></div>
+
+    <h2 class="section-title">26-Week Breakdown</h2>
+    <div class="table-wrap">
+      <table id="weeklyTable">
+        <thead>
+          <tr>
+            <th>Wk</th><th>Dates</th><th>Avg Weight</th><th>Avg BP</th><th>Avg Ex. Min/day</th><th>Days Logged</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- HISTORY TAB -->
+  <section class="tab-panel" id="panel-history">
+    <div class="history-toolbar">
+      <button class="btn-secondary" id="exportCsvBtn">Export CSV</button>
+    </div>
+    <div id="historyList" class="history-list"></div>
+  </section>
+
+  <!-- SETTINGS TAB -->
+  <section class="tab-panel" id="panel-settings">
+    <label class="field">
+      <span>Weight Unit</span>
+      <select id="weightUnit">
+        <option value="kg">Kilograms (kg)</option>
+        <option value="lb">Pounds (lb)</option>
+      </select>
+    </label>
+
+    <label class="field">
+      <span>26-Week Program Start Date</span>
+      <input type="date" id="programStart">
+    </label>
+    <p class="hint">This sets Week 1. All entries are grouped into 26 weekly buckets from this date.</p>
+
+    <div class="danger-zone">
+      <h3>Danger Zone</h3>
+      <button class="btn-danger" id="resetAllBtn">Erase All Data</button>
+    </div>
+
+    <p class="hint">All data stays on this device (browser local storage). Use Export CSV in History to back it up.</p>
+  </section>
+
+</main>
+
+<script src="js/app.js"></script>
+</body>
+</html>
