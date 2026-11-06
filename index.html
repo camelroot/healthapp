@@ -74,6 +74,13 @@
         <button type="button" class="btn-add-exercise" id="addExerciseBtn">+ Add Exercise</button>
       </fieldset>
 
+      <fieldset class="field-group">
+        <legend>Strength Hold</legend>
+        <p class="hint hint-tight">Wall sits, planks, and other timed holds — log more than one by adding another row.</p>
+        <div id="holdRows"></div>
+        <button type="button" class="btn-add-exercise" id="addHoldBtn">+ Add Hold</button>
+      </fieldset>
+
       <label class="field">
         <span>Notes (optional)</span>
         <textarea id="notes" rows="2" placeholder="Anything worth remembering about today"></textarea>
@@ -102,12 +109,15 @@
     <h2 class="section-title">Exercise Minutes / Week</h2>
     <div class="chart-wrap" id="chartExercise"></div>
 
+    <h2 class="section-title">Strength Hold Time / Week</h2>
+    <div class="chart-wrap" id="chartHold"></div>
+
     <h2 class="section-title">26-Week Breakdown</h2>
     <div class="table-wrap">
       <table id="weeklyTable">
         <thead>
           <tr>
-            <th>Wk</th><th>Dates</th><th>Avg Weight</th><th>Avg BP</th><th>Avg Ex. Min/day</th><th>Days Logged</th>
+            <th>Wk</th><th>Dates</th><th>Avg Weight</th><th>Avg BP</th><th>Avg Ex. Min/day</th><th>Avg Hold Sec/day</th><th>Days Logged</th>
           </tr>
         </thead>
         <tbody></tbody>

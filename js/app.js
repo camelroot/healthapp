@@ -236,76 +236,97 @@
     bpSystolicInput.value = prev.bpSystolic ?? "";
     bpDiastolicInput.value = prev.bpDiastolic ?? "";
     notesInput.value = prev.notes ?? "";
-    loadExercisesIntoForm(exercisesOf(prev));
+    exerciseRowsCtl.load(exercisesOf(prev));
+    holdRowsCtl.load(holdsOf(prev));
   });
 
-  // ---------- Exercise rows (supports multiple workouts per day) ----------
+  // ---------- Multi-row entry controls (supports multiple items per day) ----------
   const EXERCISE_TYPES = ["Walking", "Running", "Cycling", "Swimming", "Elliptical", "Rowing", "Other"];
-  const exerciseRowsContainer = document.getElementById("exerciseRows");
+  const HOLD_TYPES = ["Wall Sit", "Plank", "Side Plank", "Other"];
 
-  function exerciseRowEl(minutes = "", type = "") {
-    const wrap = document.createElement("div");
-    wrap.className = "exercise-row";
-    const options = EXERCISE_TYPES.map((t) => `<option ${t === type ? "selected" : ""}>${t}</option>`).join("");
-    wrap.innerHTML = `
-      <div class="field-row">
-        <label class="field">
-          <span>Minutes</span>
-          <input type="number" class="ex-minutes" inputmode="numeric" step="1" min="0" placeholder="e.g. 30" value="${minutes}">
-        </label>
-        <label class="field">
-          <span>Type</span>
-          <select class="ex-type">
-            <option value="">—</option>
-            ${options}
-          </select>
-        </label>
-      </div>
-      <button type="button" class="remove-exercise-btn">Remove this exercise</button>
-    `;
-    wrap.querySelector(".remove-exercise-btn").addEventListener("click", () => {
-      wrap.remove();
-      updateRemoveButtonsVisibility();
-    });
-    return wrap;
-  }
+  function makeMultiRowControl({ containerId, valueKey, unitLabel, placeholder, types, removeLabel }) {
+    const container = document.getElementById(containerId);
 
-  function addExerciseRow(minutes = "", type = "") {
-    exerciseRowsContainer.appendChild(exerciseRowEl(minutes, type));
-    updateRemoveButtonsVisibility();
-  }
-
-  function updateRemoveButtonsVisibility() {
-    const rows = exerciseRowsContainer.querySelectorAll(".exercise-row");
-    rows.forEach((r) => r.querySelector(".remove-exercise-btn").classList.toggle("hidden", rows.length === 1));
-  }
-
-  function clearExerciseRows() {
-    exerciseRowsContainer.innerHTML = "";
-  }
-
-  function loadExercisesIntoForm(exercises) {
-    clearExerciseRows();
-    if (exercises.length) {
-      exercises.forEach((ex) => addExerciseRow(ex.minutes, ex.type));
-    } else {
-      addExerciseRow();
+    function rowEl(amount = "", type = "") {
+      const wrap = document.createElement("div");
+      wrap.className = "exercise-row";
+      const options = types.map((t) => `<option ${t === type ? "selected" : ""}>${t}</option>`).join("");
+      wrap.innerHTML = `
+        <div class="field-row">
+          <label class="field">
+            <span>${unitLabel}</span>
+            <input type="number" class="row-amount" inputmode="numeric" step="1" min="0" placeholder="${placeholder}" value="${amount}">
+          </label>
+          <label class="field">
+            <span>Type</span>
+            <select class="row-type">
+              <option value="">—</option>
+              ${options}
+            </select>
+          </label>
+        </div>
+        <button type="button" class="remove-exercise-btn">${removeLabel}</button>
+      `;
+      wrap.querySelector(".remove-exercise-btn").addEventListener("click", () => {
+        wrap.remove();
+        updateRemoveVisibility();
+      });
+      return wrap;
     }
+
+    function updateRemoveVisibility() {
+      const rows = container.querySelectorAll(".exercise-row");
+      rows.forEach((r) => r.querySelector(".remove-exercise-btn").classList.toggle("hidden", rows.length === 1));
+    }
+
+    function addRow(amount = "", type = "") {
+      container.appendChild(rowEl(amount, type));
+      updateRemoveVisibility();
+    }
+
+    function load(items) {
+      container.innerHTML = "";
+      if (items.length) {
+        items.forEach((it) => addRow(it[valueKey], it.type));
+      } else {
+        addRow();
+      }
+    }
+
+    function getValues() {
+      const result = [];
+      container.querySelectorAll(".exercise-row").forEach((row) => {
+        const amount = row.querySelector(".row-amount").value;
+        const type = row.querySelector(".row-type").value;
+        if (amount !== "" && parseInt(amount, 10) > 0) {
+          const item = { [valueKey]: parseInt(amount, 10) };
+          if (type) item.type = type;
+          result.push(item);
+        }
+      });
+      return result;
+    }
+
+    return { addRow, load, getValues };
   }
 
-  function getExercisesFromForm() {
-    const result = [];
-    exerciseRowsContainer.querySelectorAll(".exercise-row").forEach((row) => {
-      const minutes = row.querySelector(".ex-minutes").value;
-      const type = row.querySelector(".ex-type").value;
-      if (minutes !== "" && parseInt(minutes, 10) > 0) {
-        const item = { minutes: parseInt(minutes, 10) };
-        if (type) item.type = type;
-        result.push(item);
-      }
-    });
-    return result;
-  }
+  const exerciseRowsCtl = makeMultiRowControl({
+    containerId: "exerciseRows",
+    valueKey: "minutes",
+    unitLabel: "Minutes",
+    placeholder: "e.g. 30",
+    types: EXERCISE_TYPES,
+    removeLabel: "Remove this exercise",
+  });
+
+  const holdRowsCtl = makeMultiRowControl({
+    containerId: "holdRows",
+    valueKey: "seconds",
+    unitLabel: "Seconds",
+    placeholder: "e.g. 45",
+    types: HOLD_TYPES,
+    removeLabel: "Remove this hold",
+  });
 
   // Normalizes an entry's exercise data, supporting the old single-exercise shape too.
   function exercisesOf(e) {
@@ -315,7 +336,13 @@
     return [];
   }
 
-  document.getElementById("addExerciseBtn").addEventListener("click", () => addExerciseRow());
+  function holdsOf(e) {
+    if (!e || !e.holds) return [];
+    return e.holds;
+  }
+
+  document.getElementById("addExerciseBtn").addEventListener("click", () => exerciseRowsCtl.addRow());
+  document.getElementById("addHoldBtn").addEventListener("click", () => holdRowsCtl.addRow());
 
   function loadEntryIntoForm(dateStr) {
     const e = entries[dateStr];
@@ -334,7 +361,8 @@
       existingEntryNotice.classList.add("hidden");
       deleteEntryBtn.classList.add("hidden");
     }
-    loadExercisesIntoForm(exercisesOf(e));
+    exerciseRowsCtl.load(exercisesOf(e));
+    holdRowsCtl.load(holdsOf(e));
     updateWeightUnitLabels();
   }
 
@@ -347,8 +375,10 @@
     if (weightInput.value !== "") entry.weight = parseFloat(weightInput.value);
     if (bpSystolicInput.value !== "") entry.bpSystolic = parseInt(bpSystolicInput.value, 10);
     if (bpDiastolicInput.value !== "") entry.bpDiastolic = parseInt(bpDiastolicInput.value, 10);
-    const exercises = getExercisesFromForm();
+    const exercises = exerciseRowsCtl.getValues();
     if (exercises.length) entry.exercises = exercises;
+    const holds = holdRowsCtl.getValues();
+    if (holds.length) entry.holds = holds;
     if (notesInput.value.trim() !== "") entry.notes = notesInput.value.trim();
 
     entries[dateStr] = entry;
@@ -409,6 +439,7 @@
         systolics: [],
         diastolics: [],
         exerciseMinutes: [],
+        holdSeconds: [],
         daysLogged: 0,
       });
     }
@@ -422,6 +453,8 @@
       if (e.bpDiastolic !== undefined) b.diastolics.push(e.bpDiastolic);
       const dayExercises = exercisesOf(e);
       if (dayExercises.length) b.exerciseMinutes.push(dayExercises.reduce((sum, x) => sum + x.minutes, 0));
+      const dayHolds = holdsOf(e);
+      if (dayHolds.length) b.holdSeconds.push(dayHolds.reduce((sum, x) => sum + x.seconds, 0));
       b.daysLogged += 1;
     });
 
@@ -504,6 +537,7 @@
     renderLineChart("chartWeight", buckets.map((b) => avg(b.weights)), { suffix: " " + settings.weightUnit, color: "#0f766e" });
     renderBPChart("chartBP", buckets);
     renderBarChart("chartExercise", buckets.map((b) => (b.exerciseMinutes.length ? b.exerciseMinutes.reduce((a, c) => a + c, 0) : null)), { suffix: " min", color: "#2563eb" });
+    renderBarChart("chartHold", buckets.map((b) => (b.holdSeconds.length ? b.holdSeconds.reduce((a, c) => a + c, 0) : null)), { suffix: " sec", color: "#9333ea" });
 
     const tbody = document.querySelector("#weeklyTable tbody");
     const curWk = currentWeekNumber();
@@ -512,12 +546,14 @@
         const empty = b.daysLogged === 0;
         const isCurrent = curWk === b.weekNum;
         const avgEx = b.exerciseMinutes.length ? avg(b.exerciseMinutes) : null;
+        const avgHold = b.holdSeconds.length ? avg(b.holdSeconds) : null;
         return `<tr class="${empty ? "empty-week" : ""} ${isCurrent ? "current-week" : ""}">
           <td>${b.weekNum}</td>
           <td>${formatShort(b.startDate)}–${formatShort(b.endDate)}</td>
           <td>${b.weights.length ? fmt1(avg(b.weights)) + " " + settings.weightUnit : "—"}</td>
           <td>${b.systolics.length ? `${fmt0(avg(b.systolics))}/${fmt0(avg(b.diastolics))}` : "—"}</td>
           <td>${avgEx === null ? "—" : fmt0(avgEx)}</td>
+          <td>${avgHold === null ? "—" : fmt0(avgHold)}</td>
           <td>${b.daysLogged}</td>
         </tr>`;
       })
@@ -687,6 +723,10 @@
         if (exercises.length) {
           parts.push(exercises.map((x) => `${x.minutes} min${x.type ? " " + x.type : ""}`).join(" + "));
         }
+        const holds = holdsOf(e);
+        if (holds.length) {
+          parts.push(holds.map((x) => `${x.seconds} sec${x.type ? " " + x.type : ""}`).join(" + "));
+        }
         return `<div class="history-item" data-date="${e.date}">
           <div>
             <div class="hi-date">${formatShort(e.date)}</div>
@@ -708,12 +748,15 @@
   }
 
   document.getElementById("exportCsvBtn").addEventListener("click", () => {
-    const rows = [["date", "weight", "weightUnit", "bpSystolic", "bpDiastolic", "exercises", "notes"]];
+    const rows = [["date", "weight", "weightUnit", "bpSystolic", "bpDiastolic", "exercises", "holds", "notes"]];
     Object.values(entries)
       .sort((a, b) => (a.date < b.date ? -1 : 1))
       .forEach((e) => {
         const exercises = exercisesOf(e)
           .map((x) => `${x.minutes}min${x.type ? " " + x.type : ""}`)
+          .join("; ");
+        const holds = holdsOf(e)
+          .map((x) => `${x.seconds}sec${x.type ? " " + x.type : ""}`)
           .join("; ");
         rows.push([
           e.date,
@@ -722,6 +765,7 @@
           e.bpSystolic ?? "",
           e.bpDiastolic ?? "",
           exercises,
+          holds,
           (e.notes ?? "").replace(/"/g, '""'),
         ]);
       });
@@ -825,20 +869,28 @@
     return result;
   }
 
-  function parseExercisesField(str) {
+  function parseTimedField(str, valueKey, unitRegex) {
     if (!str) return [];
     return str
       .split(";")
       .map((s) => s.trim())
       .filter(Boolean)
       .map((s) => {
-        const m = s.match(/^(\d+)\s*min\s*(.*)$/i);
+        const m = s.match(unitRegex);
         if (!m) return null;
-        const item = { minutes: parseInt(m[1], 10) };
+        const item = { [valueKey]: parseInt(m[1], 10) };
         if (m[2]) item.type = m[2].trim();
         return item;
       })
       .filter(Boolean);
+  }
+
+  function parseExercisesField(str) {
+    return parseTimedField(str, "minutes", /^(\d+)\s*min\s*(.*)$/i);
+  }
+
+  function parseHoldsField(str) {
+    return parseTimedField(str, "seconds", /^(\d+)\s*sec\s*(.*)$/i);
   }
 
   function parseCsv(text) {
@@ -852,6 +904,7 @@
     const bpSysIdx = idx("bpSystolic");
     const bpDiaIdx = idx("bpDiastolic");
     const exIdx = idx("exercises");
+    const holdIdx = idx("holds");
     const notesIdx = idx("notes");
 
     const result = [];
@@ -866,6 +919,10 @@
       if (exIdx !== -1 && cols[exIdx] !== "") {
         const exercises = parseExercisesField(cols[exIdx]);
         if (exercises.length) entry.exercises = exercises;
+      }
+      if (holdIdx !== -1 && cols[holdIdx] !== "") {
+        const holds = parseHoldsField(cols[holdIdx]);
+        if (holds.length) entry.holds = holds;
       }
       if (notesIdx !== -1 && cols[notesIdx] !== "") entry.notes = cols[notesIdx];
       result.push(entry);
