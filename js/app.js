@@ -237,11 +237,13 @@
     bpDiastolicInput.value = prev.bpDiastolic ?? "";
     notesInput.value = prev.notes ?? "";
     exerciseRowsCtl.load(exercisesOf(prev));
+    strengthRowsCtl.load(strengthOf(prev));
     holdRowsCtl.load(holdsOf(prev));
   });
 
   // ---------- Multi-row entry controls (supports multiple items per day) ----------
   const EXERCISE_TYPES = ["Walking", "Running", "Cycling", "Swimming", "Elliptical", "Rowing", "Other"];
+  const STRENGTH_TYPES = ["Full Body", "Upper Body", "Lower Body", "Push", "Pull", "Legs", "Core", "Other"];
   const HOLD_TYPES = ["Wall Sit", "Plank", "Side Plank", "Other"];
 
   function makeMultiRowControl({ containerId, valueKey, unitLabel, placeholder, types, removeLabel }) {
@@ -319,6 +321,15 @@
     removeLabel: "Remove this exercise",
   });
 
+  const strengthRowsCtl = makeMultiRowControl({
+    containerId: "strengthRows",
+    valueKey: "minutes",
+    unitLabel: "Minutes",
+    placeholder: "e.g. 45",
+    types: STRENGTH_TYPES,
+    removeLabel: "Remove this session",
+  });
+
   const holdRowsCtl = makeMultiRowControl({
     containerId: "holdRows",
     valueKey: "seconds",
@@ -336,12 +347,18 @@
     return [];
   }
 
+  function strengthOf(e) {
+    if (!e || !e.strength) return [];
+    return e.strength;
+  }
+
   function holdsOf(e) {
     if (!e || !e.holds) return [];
     return e.holds;
   }
 
   document.getElementById("addExerciseBtn").addEventListener("click", () => exerciseRowsCtl.addRow());
+  document.getElementById("addStrengthBtn").addEventListener("click", () => strengthRowsCtl.addRow());
   document.getElementById("addHoldBtn").addEventListener("click", () => holdRowsCtl.addRow());
 
   function loadEntryIntoForm(dateStr) {
@@ -362,6 +379,7 @@
       deleteEntryBtn.classList.add("hidden");
     }
     exerciseRowsCtl.load(exercisesOf(e));
+    strengthRowsCtl.load(strengthOf(e));
     holdRowsCtl.load(holdsOf(e));
     updateWeightUnitLabels();
   }
@@ -377,6 +395,8 @@
     if (bpDiastolicInput.value !== "") entry.bpDiastolic = parseInt(bpDiastolicInput.value, 10);
     const exercises = exerciseRowsCtl.getValues();
     if (exercises.length) entry.exercises = exercises;
+    const strength = strengthRowsCtl.getValues();
+    if (strength.length) entry.strength = strength;
     const holds = holdRowsCtl.getValues();
     if (holds.length) entry.holds = holds;
     if (notesInput.value.trim() !== "") entry.notes = notesInput.value.trim();
@@ -439,6 +459,7 @@
         systolics: [],
         diastolics: [],
         exerciseMinutes: [],
+        strengthMinutes: [],
         holdSeconds: [],
         daysLogged: 0,
       });
@@ -453,6 +474,8 @@
       if (e.bpDiastolic !== undefined) b.diastolics.push(e.bpDiastolic);
       const dayExercises = exercisesOf(e);
       if (dayExercises.length) b.exerciseMinutes.push(dayExercises.reduce((sum, x) => sum + x.minutes, 0));
+      const dayStrength = strengthOf(e);
+      if (dayStrength.length) b.strengthMinutes.push(dayStrength.reduce((sum, x) => sum + x.minutes, 0));
       const dayHolds = holdsOf(e);
       if (dayHolds.length) b.holdSeconds.push(dayHolds.reduce((sum, x) => sum + x.seconds, 0));
       b.daysLogged += 1;
@@ -537,6 +560,7 @@
     renderLineChart("chartWeight", buckets.map((b) => avg(b.weights)), { suffix: " " + settings.weightUnit, color: "#0f766e" });
     renderBPChart("chartBP", buckets);
     renderBarChart("chartExercise", buckets.map((b) => (b.exerciseMinutes.length ? b.exerciseMinutes.reduce((a, c) => a + c, 0) : null)), { suffix: " min", color: "#2563eb" });
+    renderBarChart("chartStrength", buckets.map((b) => (b.strengthMinutes.length ? b.strengthMinutes.reduce((a, c) => a + c, 0) : null)), { suffix: " min", color: "#d97706" });
     renderBarChart("chartHold", buckets.map((b) => (b.holdSeconds.length ? b.holdSeconds.reduce((a, c) => a + c, 0) : null)), { suffix: " sec", color: "#9333ea" });
 
     const tbody = document.querySelector("#weeklyTable tbody");
@@ -546,6 +570,7 @@
         const empty = b.daysLogged === 0;
         const isCurrent = curWk === b.weekNum;
         const avgEx = b.exerciseMinutes.length ? avg(b.exerciseMinutes) : null;
+        const avgStrength = b.strengthMinutes.length ? avg(b.strengthMinutes) : null;
         const avgHold = b.holdSeconds.length ? avg(b.holdSeconds) : null;
         return `<tr class="${empty ? "empty-week" : ""} ${isCurrent ? "current-week" : ""}">
           <td>${b.weekNum}</td>
@@ -553,6 +578,7 @@
           <td>${b.weights.length ? fmt1(avg(b.weights)) + " " + settings.weightUnit : "—"}</td>
           <td>${b.systolics.length ? `${fmt0(avg(b.systolics))}/${fmt0(avg(b.diastolics))}` : "—"}</td>
           <td>${avgEx === null ? "—" : fmt0(avgEx)}</td>
+          <td>${avgStrength === null ? "—" : fmt0(avgStrength)}</td>
           <td>${avgHold === null ? "—" : fmt0(avgHold)}</td>
           <td>${b.daysLogged}</td>
         </tr>`;
@@ -723,6 +749,10 @@
         if (exercises.length) {
           parts.push(exercises.map((x) => `${x.minutes} min${x.type ? " " + x.type : ""}`).join(" + "));
         }
+        const strength = strengthOf(e);
+        if (strength.length) {
+          parts.push(strength.map((x) => `${x.minutes} min${x.type ? " " + x.type : ""}`).join(" + "));
+        }
         const holds = holdsOf(e);
         if (holds.length) {
           parts.push(holds.map((x) => `${x.seconds} sec${x.type ? " " + x.type : ""}`).join(" + "));
@@ -748,11 +778,14 @@
   }
 
   document.getElementById("exportCsvBtn").addEventListener("click", () => {
-    const rows = [["date", "weight", "weightUnit", "bpSystolic", "bpDiastolic", "exercises", "holds", "notes"]];
+    const rows = [["date", "weight", "weightUnit", "bpSystolic", "bpDiastolic", "exercises", "strength", "holds", "notes"]];
     Object.values(entries)
       .sort((a, b) => (a.date < b.date ? -1 : 1))
       .forEach((e) => {
         const exercises = exercisesOf(e)
+          .map((x) => `${x.minutes}min${x.type ? " " + x.type : ""}`)
+          .join("; ");
+        const strength = strengthOf(e)
           .map((x) => `${x.minutes}min${x.type ? " " + x.type : ""}`)
           .join("; ");
         const holds = holdsOf(e)
@@ -765,6 +798,7 @@
           e.bpSystolic ?? "",
           e.bpDiastolic ?? "",
           exercises,
+          strength,
           holds,
           (e.notes ?? "").replace(/"/g, '""'),
         ]);
@@ -904,6 +938,7 @@
     const bpSysIdx = idx("bpSystolic");
     const bpDiaIdx = idx("bpDiastolic");
     const exIdx = idx("exercises");
+    const strengthIdx = idx("strength");
     const holdIdx = idx("holds");
     const notesIdx = idx("notes");
 
@@ -919,6 +954,10 @@
       if (exIdx !== -1 && cols[exIdx] !== "") {
         const exercises = parseExercisesField(cols[exIdx]);
         if (exercises.length) entry.exercises = exercises;
+      }
+      if (strengthIdx !== -1 && cols[strengthIdx] !== "") {
+        const strength = parseExercisesField(cols[strengthIdx]);
+        if (strength.length) entry.strength = strength;
       }
       if (holdIdx !== -1 && cols[holdIdx] !== "") {
         const holds = parseHoldsField(cols[holdIdx]);

@@ -75,6 +75,13 @@
       </fieldset>
 
       <fieldset class="field-group">
+        <legend>Strength Training</legend>
+        <p class="hint hint-tight">Weight lifting / resistance training — log more than one session by adding another row.</p>
+        <div id="strengthRows"></div>
+        <button type="button" class="btn-add-exercise" id="addStrengthBtn">+ Add Strength Training</button>
+      </fieldset>
+
+      <fieldset class="field-group">
         <legend>Strength Hold</legend>
         <p class="hint hint-tight">Wall sits, planks, and other timed holds — log more than one by adding another row.</p>
         <div id="holdRows"></div>
@@ -109,6 +116,9 @@
     <h2 class="section-title">Exercise Minutes / Week</h2>
     <div class="chart-wrap" id="chartExercise"></div>
 
+    <h2 class="section-title">Strength Training Minutes / Week</h2>
+    <div class="chart-wrap" id="chartStrength"></div>
+
     <h2 class="section-title">Strength Hold Time / Week</h2>
     <div class="chart-wrap" id="chartHold"></div>
 
@@ -117,7 +127,7 @@
       <table id="weeklyTable">
         <thead>
           <tr>
-            <th>Wk</th><th>Dates</th><th>Avg Weight</th><th>Avg BP</th><th>Avg Ex. Min/day</th><th>Avg Hold Sec/day</th><th>Days Logged</th>
+            <th>Wk</th><th>Dates</th><th>Avg Weight</th><th>Avg BP</th><th>Avg Ex. Min/day</th><th>Avg Strength Min/day</th><th>Avg Hold Sec/day</th><th>Days Logged</th>
           </tr>
         </thead>
         <tbody></tbody>
